@@ -1,7 +1,7 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { FolderOutlined } from '@ant-design/icons';
 import { Layout, Menu, theme } from 'antd';
-import { Outlet, useNavigate } from 'react-router';
+import { Outlet, useNavigate, useLocation } from 'react-router';
 
 const { Header, Content, Sider } = Layout;
 
@@ -12,12 +12,12 @@ const menuItems = [
     icon: <FolderOutlined />
   },
   {
-    key: 'source-manage',
+    key: '/source-manage',
     label: '源设备管理',
     icon: <FolderOutlined />
   },
   {
-    key: 'target-manage',
+    key: '/target-manage',
     label: '目标设备管理',
     icon: <FolderOutlined />
   }
@@ -25,10 +25,18 @@ const menuItems = [
 
 const LayoutPage: React.FC = () => {
   const navigate = useNavigate();
+  const location = useLocation();
 
   const {
     token: { colorBgContainer, borderRadiusLG }
   } = theme.useToken();
+
+  // 根据当前路径获取页面标题
+  const pageTitle = useMemo(() => {
+    const currentPath = location.pathname === '/' ? '/' : location.pathname;
+    const currentItem = menuItems.find((item) => item.key === currentPath);
+    return currentItem?.label || '迁移任务';
+  }, [location.pathname]);
 
   return (
     <Layout className="h-screen">
@@ -36,7 +44,7 @@ const LayoutPage: React.FC = () => {
         <Menu
           theme="dark"
           mode="inline"
-          defaultSelectedKeys={['0']}
+          defaultSelectedKeys={[location.pathname]}
           items={menuItems}
           onClick={(item) => {
             navigate(item.key);
@@ -44,7 +52,11 @@ const LayoutPage: React.FC = () => {
         />
       </Sider>
       <Layout>
-        <Header style={{ padding: 0, background: colorBgContainer }} />
+        <Header style={{ padding: 0, background: colorBgContainer }}>
+          <div className="px-6 h-full flex items-center">
+            <h1 className="text-xl font-semibold">{pageTitle}</h1>
+          </div>
+        </Header>
         <Content style={{ margin: '24px 16px 0' }}>
           <div
             style={{
