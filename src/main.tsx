@@ -1,6 +1,6 @@
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
-import { BrowserRouter, Navigate, Route, Routes } from 'react-router';
+import { HashRouter, Navigate, Route, Routes } from 'react-router';
 
 import LayoutPage from '@/layout/LayoutPage.tsx';
 import SourceManage from '@/pages/source-manage/index.tsx';
@@ -11,7 +11,7 @@ import './index.css';
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    <BrowserRouter>
+    <HashRouter>
       <Routes>
         <Route element={<LayoutPage />}>
           <Route index element={<Navigate to="/migrate-task" replace />} />
@@ -20,6 +20,6 @@ createRoot(document.getElementById('root')!).render(
           <Route path="target-manage" element={<TargetManage />} />
         </Route>
       </Routes>
-    </BrowserRouter>
+    </HashRouter>
   </StrictMode>
 );
