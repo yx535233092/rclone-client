@@ -1,5 +1,5 @@
 import React, { useMemo } from 'react';
-import { FolderOutlined } from '@ant-design/icons';
+import { CloudServerOutlined, CloudSyncOutlined } from '@ant-design/icons';
 import { Layout, Menu, theme } from 'antd';
 import { Outlet, useNavigate, useLocation } from 'react-router';
 
@@ -9,17 +9,17 @@ const menuItems = [
   {
     key: '/migrate-task',
     label: '迁移任务',
-    icon: <FolderOutlined />
+    icon: <CloudSyncOutlined />
   },
   {
     key: '/source-manage',
     label: '源设备管理',
-    icon: <FolderOutlined />
+    icon: <CloudServerOutlined />
   },
   {
     key: '/target-manage',
     label: '目标设备管理',
-    icon: <FolderOutlined />
+    icon: <CloudServerOutlined />
   }
 ];
 
@@ -41,6 +41,9 @@ const LayoutPage: React.FC = () => {
   return (
     <Layout className="h-screen">
       <Sider breakpoint="lg" collapsedWidth="0">
+        <div className="w-full flex justify-center text-white py-8 text-sm">
+          RClone OSS 迁移工具
+        </div>
         <Menu
           theme="dark"
           mode="inline"
