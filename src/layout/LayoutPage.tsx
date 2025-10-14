@@ -7,7 +7,7 @@ const { Header, Content, Sider } = Layout;
 
 const menuItems = [
   {
-    key: '/',
+    key: '/migrate-task',
     label: '迁移任务',
     icon: <FolderOutlined />
   },
@@ -35,7 +35,7 @@ const LayoutPage: React.FC = () => {
   const pageTitle = useMemo(() => {
     const currentPath = location.pathname === '/' ? '/' : location.pathname;
     const currentItem = menuItems.find((item) => item.key === currentPath);
-    return currentItem?.label || '迁移任务';
+    return currentItem?.label || '首页';
   }, [location.pathname]);
 
   return (
@@ -44,7 +44,9 @@ const LayoutPage: React.FC = () => {
         <Menu
           theme="dark"
           mode="inline"
-          defaultSelectedKeys={[location.pathname]}
+          defaultSelectedKeys={[
+            location.pathname === '/' ? '/migrate-task' : location.pathname
+          ]}
           items={menuItems}
           onClick={(item) => {
             navigate(item.key);
