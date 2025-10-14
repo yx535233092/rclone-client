@@ -2,8 +2,8 @@ import React, { useState } from 'react';
 import { Space, Table } from 'antd';
 import type { TableProps } from 'antd';
 
-import SearchForm from '@/components/SearchForm';
-import TaskDrawer from '@/components/TaskDrawer';
+import SearchForm from './SearchForm';
+import TaskDrawer from './TaskDrawer';
 
 interface DataType {
   key: string;
@@ -80,7 +80,7 @@ const data: DataType[] = [
   }
 ];
 
-const SourceManage: React.FC = () => {
+const TargetManage: React.FC = () => {
   const [open, setOpen] = useState(false);
 
   return (
@@ -92,4 +92,4 @@ const SourceManage: React.FC = () => {
   );
 };
 
-export default SourceManage;
+export default TargetManage;

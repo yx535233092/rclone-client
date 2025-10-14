@@ -3,9 +3,9 @@ import { createRoot } from 'react-dom/client';
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router';
 
 import LayoutPage from '@/layout/LayoutPage.tsx';
-import SourceManage from '@/pages/SourceManage.tsx';
-import TargetManage from '@/pages/TargetManage.tsx';
-import MigrateTask from './pages/MigrateTask.tsx';
+import SourceManage from '@/pages/source-manage/index.tsx';
+import TargetManage from '@/pages/target-manage/index.tsx';
+import MigrateTask from '@/pages/migrate-task/index.tsx';
 
 import './index.css';
 
