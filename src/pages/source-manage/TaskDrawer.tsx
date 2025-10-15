@@ -1,20 +1,73 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { Button, Col, Drawer, Form, Input, Row, Select, Space } from 'antd';
 
 const { Option } = Select;
 
+interface DataType {
+  key: string;
+  name: string;
+  type?: string;
+  protocol?: string;
+  ak?: string;
+  sk?: string;
+  endpoint?: string;
+}
+
 const TaskDrawer: React.FC<{
   open: boolean;
   closeDrawer: () => void;
-}> = ({ open, closeDrawer }) => {
+  editingRecord?: DataType | null;
+  onSave: (values: any) => void;
+}> = ({ open, closeDrawer, editingRecord, onSave }) => {
+  const [form] = Form.useForm();
+
+  // 当编辑记录改变时，更新表单值
+  useEffect(() => {
+    if (open) {
+      if (editingRecord) {
+        form.setFieldsValue({
+          deviceName: editingRecord.name,
+          deviceType: editingRecord.type,
+          protocol: editingRecord.protocol,
+          ak: editingRecord.ak,
+          sk: editingRecord.sk,
+          endpoint: editingRecord.endpoint
+        });
+      } else {
+        form.resetFields();
+      }
+    }
+  }, [open, editingRecord, form]);
+
   const onClose = () => {
+    form.resetFields();
     closeDrawer();
+  };
+
+  const handleSubmit = () => {
+    form
+      .validateFields()
+      .then((values) => {
+        const submitData = {
+          name: values.deviceName,
+          type: values.deviceType,
+          protocol: values.protocol,
+          ak: values.ak,
+          sk: values.sk,
+          endpoint: values.endpoint
+        };
+        onSave(submitData);
+        form.resetFields();
+      })
+      .catch((info) => {
+        console.log('Validate Failed:', info);
+      });
   };
 
   return (
     <>
       <Drawer
-        title="新建源设备"
+        title={editingRecord ? '编辑源设备' : '新建源设备'}
         width={720}
         onClose={onClose}
         open={open}
@@ -29,7 +82,7 @@ const TaskDrawer: React.FC<{
           </Space>
         }
       >
-        <Form layout="vertical" hideRequiredMark>
+        <Form form={form} layout="vertical" hideRequiredMark>
           <Row gutter={16}>
             <Col span={12}>
               <Form.Item
@@ -96,7 +149,9 @@ const TaskDrawer: React.FC<{
           <Row gutter={16}>
             <Col span={24}>
               <Form.Item>
-                <Button type="primary">保存</Button>
+                <Button type="primary" onClick={handleSubmit}>
+                  保存
+                </Button>
               </Form.Item>
             </Col>
           </Row>
