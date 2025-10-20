@@ -9,17 +9,18 @@ const SearchForm: React.FC<{ openDrawer: () => void }> = ({ openDrawer }) => {
       style={{
         display: 'flex',
         justifyContent: 'space-between',
-        padding: '16px 0'
+        padding: '16px 0',
+        marginBottom: '16px'
       }}
       layout={'inline'}
       form={form}
     >
       <div className="flex gap-4">
         <Form.Item label="设备名称">
-          <Input placeholder="请输入设备名称" />
+          <Input placeholder="请输入设备名称" style={{ width: 180 }} />
         </Form.Item>
         <Form.Item label="IP">
-          <Input placeholder="请输入IP" />
+          <Input placeholder="请输入IP" style={{ width: 180 }} />
         </Form.Item>
       </div>
 
@@ -29,7 +30,7 @@ const SearchForm: React.FC<{ openDrawer: () => void }> = ({ openDrawer }) => {
         </Form.Item>
         <Form.Item>
           <Button type="primary" onClick={openDrawer}>
-            新建任务
+            新增设备
           </Button>
         </Form.Item>
       </div>
