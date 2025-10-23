@@ -1,23 +1,14 @@
 import React, { useEffect } from 'react';
 import { Button, Col, Drawer, Form, Input, Row, Select, Space } from 'antd';
+import type { DeviceType } from '@/types/device';
 
 const { Option } = Select;
-
-interface DataType {
-  key: string;
-  name: string;
-  type?: string;
-  protocol?: string;
-  ak?: string;
-  sk?: string;
-  endpoint?: string;
-}
 
 const TaskDrawer: React.FC<{
   open: boolean;
   closeDrawer: () => void;
-  editingRecord?: DataType | null;
-  onSave: (values: Partial<DataType>) => void;
+  editingRecord?: DeviceType | null;
+  onSave: (values: DeviceType) => void;
 }> = ({ open, closeDrawer, editingRecord, onSave }) => {
   const [form] = Form.useForm();
 
@@ -26,8 +17,8 @@ const TaskDrawer: React.FC<{
     if (open) {
       if (editingRecord) {
         form.setFieldsValue({
-          deviceName: editingRecord.name,
-          deviceType: editingRecord.type,
+          name: editingRecord.name,
+          type: editingRecord.type,
           protocol: editingRecord.protocol,
           ak: editingRecord.ak,
           sk: editingRecord.sk,
@@ -35,6 +26,15 @@ const TaskDrawer: React.FC<{
         });
       } else {
         form.resetFields();
+        // TODO 测试数据
+        form.setFieldsValue({
+          name: 'test',
+          type: 'S3',
+          protocol: 'Minio',
+          ak: 'minioadmin',
+          sk: 'minioadmin',
+          endpoint: 'http://localhost:9000'
+        });
       }
     }
   }, [open, editingRecord, form]);
@@ -48,15 +48,7 @@ const TaskDrawer: React.FC<{
     form
       .validateFields()
       .then((values) => {
-        const submitData = {
-          name: values.deviceName,
-          type: values.deviceType,
-          protocol: values.protocol,
-          ak: values.ak,
-          sk: values.sk,
-          endpoint: values.endpoint
-        };
-        onSave(submitData);
+        onSave(values);
         form.resetFields();
       })
       .catch((info) => {
@@ -67,7 +59,7 @@ const TaskDrawer: React.FC<{
   return (
     <>
       <Drawer
-        title={editingRecord ? '编辑目标设备' : '新建目标设备'}
+        title={editingRecord ? '编辑源设备' : '新建源设备'}
         width={720}
         onClose={onClose}
         open={open}
@@ -82,11 +74,11 @@ const TaskDrawer: React.FC<{
           </Space>
         }
       >
-        <Form form={form} layout="vertical" hideRequiredMark>
+        <Form form={form} layout="vertical">
           <Row gutter={16}>
             <Col span={12}>
               <Form.Item
-                name="deviceName"
+                name="name"
                 label="设备名称"
                 rules={[{ required: true, message: '请输入设备名称' }]}
               >
@@ -106,13 +98,12 @@ const TaskDrawer: React.FC<{
           <Row gutter={16}>
             <Col span={12}>
               <Form.Item
-                name="deviceType"
+                name="type"
                 label="设备类型"
                 rules={[{ required: true, message: '请选择设备类型' }]}
               >
                 <Select placeholder="请选择设备类型">
-                  <Option value="1">Amazon S3</Option>
-                  <Option value="2">Amazon S3</Option>
+                  <Option value="S3">Amazon S3</Option>
                 </Select>
               </Form.Item>
             </Col>

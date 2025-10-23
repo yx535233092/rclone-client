@@ -36,9 +36,9 @@ interface DataType {
   address?: string;
   tags?: string[];
   sourceDevice?: string; // 源端设备名称
-  sourceBuket?: string; // bucket名称
+  sourceBucket?: string; // bucket名称
   targetDevice?: string; // 目标端设备名称
-  targetBuket?: string; // 目标端bucket名称
+  targetBucket?: string; // 目标端bucket名称
   progress?: number; // 迁移进度百分比 (0-100)
   migrateSpeed?: string; // 迁移速度
   migratedSize?: string; // 已迁移大小
@@ -54,10 +54,10 @@ const data: DataType[] = [
     name: '任务001',
     source: '设备001',
     sourceDevice: 'Amazon S3',
-    sourceBuket: 'test-bucket-1',
+    sourceBucket: 'test-bucket-1',
     target: '设备002',
     targetDevice: '阿里云OSS',
-    targetBuket: 'backup-target-1',
+    targetBucket: 'backup-target-1',
     status: '迁移中',
     usedTime: '100s',
     remainingTime: '100s',
@@ -71,10 +71,10 @@ const data: DataType[] = [
     name: '任务002',
     source: '设备001',
     sourceDevice: '设备001',
-    sourceBuket: 'backup-bucket',
+    sourceBucket: 'backup-bucket',
     target: '设备002',
     targetDevice: '腾讯云COS',
-    targetBuket: 'target-bucket-2',
+    targetBucket: 'target-bucket-2',
     status: '完成',
     usedTime: '500s',
     remainingTime: '0s',
@@ -88,10 +88,10 @@ const data: DataType[] = [
     name: '任务003',
     source: '设备001',
     sourceDevice: 'OSS设备',
-    sourceBuket: 'storage-bucket',
+    sourceBucket: 'storage-bucket',
     target: '设备002',
     targetDevice: '华为云OBS',
-    targetBuket: 'final-destination',
+    targetBucket: 'final-destination',
     status: '迁移中',
     usedTime: '200s',
     remainingTime: '150s',
@@ -106,6 +106,8 @@ const MigrateTask: React.FC = () => {
   const [open, setOpen] = useState(false);
   const [editingRecord, setEditingRecord] = useState<DataType | null>(null);
   const [dataSource, setDataSource] = useState<DataType[]>(data);
+  const [deleteModalOpen, setDeleteModalOpen] = useState(false);
+  const [deletingRecord, setDeletingRecord] = useState<DataType | null>(null);
 
   // 打开新建抽屉
   const handleCreate = () => {
@@ -133,16 +135,26 @@ const MigrateTask: React.FC = () => {
 
   // 删除记录
   const handleDelete = (record: DataType) => {
-    Modal.confirm({
-      title: '确认删除',
-      content: `确定要删除任务"${record.name}"吗？`,
-      okText: '确认',
-      cancelText: '取消',
-      onOk: () => {
-        setDataSource(dataSource.filter((item) => item.key !== record.key));
-        message.success('删除成功');
-      }
-    });
+    setDeletingRecord(record);
+    setDeleteModalOpen(true);
+  };
+
+  // 确认删除
+  const handleConfirmDelete = () => {
+    if (deletingRecord) {
+      setDataSource(
+        dataSource.filter((item) => item.key !== deletingRecord.key)
+      );
+      message.success('删除成功');
+      setDeleteModalOpen(false);
+      setDeletingRecord(null);
+    }
+  };
+
+  // 取消删除
+  const handleCancelDelete = () => {
+    setDeleteModalOpen(false);
+    setDeletingRecord(null);
   };
 
   // 关闭抽屉
@@ -180,9 +192,9 @@ const MigrateTask: React.FC = () => {
         totalSize: '0GB', // 初始总大小，后续可以更新
         ...values,
         sourceDevice: values.source, // 保存源端设备名称
-        sourceBuket: values.sourceBuket, // 保存源端bucket名称
+        sourceBucket: values.sourceBucket, // 保存源端bucket名称
         targetDevice: values.target, // 保存目标端设备名称
-        targetBuket: values.targetBuket // 保存目标端bucket名称
+        targetBucket: values.targetBucket // 保存目标端bucket名称
       };
       setDataSource([...dataSource, newRecord]);
       message.success('新建成功');
@@ -210,7 +222,7 @@ const MigrateTask: React.FC = () => {
       key: 'source',
       render: (_: unknown, record: DataType) => {
         const deviceName = record.sourceDevice || record.source || '未知设备';
-        const bucketName = record.sourceBuket || '未知bucket';
+        const bucketName = record.sourceBucket || '未知bucket';
         return (
           <div
             style={{
@@ -233,7 +245,7 @@ const MigrateTask: React.FC = () => {
       key: 'target',
       render: (_: unknown, record: DataType) => {
         const deviceName = record.targetDevice || record.target || '未知设备';
-        const bucketName = record.targetBuket || '未知bucket';
+        const bucketName = record.targetBucket || '未知bucket';
         return (
           <div
             style={{
@@ -463,6 +475,19 @@ const MigrateTask: React.FC = () => {
         editingRecord={editingRecord}
         onSave={handleSave}
       />
+
+      {/* 删除确认 Modal */}
+      <Modal
+        title="确认删除"
+        open={deleteModalOpen}
+        onOk={handleConfirmDelete}
+        onCancel={handleCancelDelete}
+        okText="确认"
+        cancelText="取消"
+        centered
+      >
+        <p>确定要删除任务"{deletingRecord?.name}"吗？</p>
+      </Modal>
     </>
   );
 };

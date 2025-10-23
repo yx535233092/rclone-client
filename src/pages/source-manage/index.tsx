@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   Space,
   Table,
@@ -16,53 +16,35 @@ const { Text } = Typography;
 import SearchForm from './SearchForm';
 import TaskDrawer from './TaskDrawer';
 
-interface DataType {
-  key: string;
-  name: string;
-  type?: string;
-  protocol?: string;
-  ak?: string;
-  sk?: string;
-  endpoint?: string;
-  age?: number;
-  address?: string;
-  tags?: string[];
-}
-
-const data: DataType[] = [
-  {
-    key: '1',
-    name: '设备001',
-    type: 'Amazon S3',
-    protocol: 's3',
-    ak: '1234567890',
-    sk: '1234567890',
-    endpoint: 'https://s3.amazonaws.com'
-  },
-  {
-    key: '2',
-    name: '设备002',
-    type: 'Amazon S3',
-    protocol: 's3',
-    ak: '1234567890',
-    sk: '1234567890',
-    endpoint: 'https://s3.amazonaws.com'
-  },
-  {
-    key: '3',
-    name: '设备003',
-    type: 'Amazon S3',
-    protocol: 's3',
-    ak: '1234567890',
-    sk: '1234567890',
-    endpoint: 'https://s3.amazonaws.com'
-  }
-];
+import type { DeviceType } from '@/types/device';
+import {
+  createDeviceAPI,
+  deleteDeviceAPI,
+  getDevicesAPI,
+  updateDeviceAPI
+} from '@/apis/device';
 
 const SourceManage: React.FC = () => {
   const [open, setOpen] = useState(false);
-  const [editingRecord, setEditingRecord] = useState<DataType | null>(null);
-  const [dataSource, setDataSource] = useState<DataType[]>(data);
+  const [editingRecord, setEditingRecord] = useState<DeviceType | null>(null);
+  const [dataSource, setDataSource] = useState<DeviceType[]>();
+  const [deleteModalOpen, setDeleteModalOpen] = useState(false);
+  const [deletingRecord, setDeletingRecord] = useState<DeviceType | null>(null);
+  const [messageApi, contextHolder] = message.useMessage();
+
+  // 获取列表
+  const getList = async (query = { device_type: 'source' }) => {
+    const res = await getDevicesAPI(query);
+    if (res.code === 200 && res.data) {
+      const listData = res.data.map((item) => {
+        return {
+          ...item,
+          key: item.id
+        };
+      });
+      setDataSource(listData);
+    }
+  };
 
   // 打开新建抽屉
   const handleCreate = () => {
@@ -71,23 +53,38 @@ const SourceManage: React.FC = () => {
   };
 
   // 打开编辑抽屉
-  const handleEdit = (record: DataType) => {
+  const handleEdit = (record: DeviceType) => {
     setEditingRecord(record);
     setOpen(true);
   };
 
   // 删除记录
-  const handleDelete = (record: DataType) => {
-    Modal.confirm({
-      title: '确认删除',
-      content: `确定要删除设备"${record.name}"吗？`,
-      okText: '确认',
-      cancelText: '取消',
-      onOk: () => {
-        setDataSource(dataSource.filter((item) => item.key !== record.key));
-        message.success('删除成功');
+  const handleDelete = (record: DeviceType) => {
+    setDeletingRecord(record);
+    setDeleteModalOpen(true);
+  };
+
+  // 确认删除
+  const handleConfirmDelete = async () => {
+    if (deletingRecord && dataSource) {
+      try {
+        const res = await deleteDeviceAPI(deletingRecord.id!);
+        if (res.code === 200) {
+          messageApi.success(res.message);
+          getList();
+        }
+      } catch (error) {
+        messageApi.error((error as Error).message);
       }
-    });
+      setDeleteModalOpen(false);
+      setDeletingRecord(null);
+    }
+  };
+
+  // 取消删除
+  const handleCancelDelete = () => {
+    setDeleteModalOpen(false);
+    setDeletingRecord(null);
   };
 
   // 关闭抽屉
@@ -97,30 +94,51 @@ const SourceManage: React.FC = () => {
   };
 
   // 保存数据
-  const handleSave = (values: Partial<DataType>) => {
-    if (editingRecord) {
-      // 编辑模式
-      setDataSource(
-        dataSource.map((item) =>
-          item.key === editingRecord.key ? { ...item, ...values } : item
-        )
-      );
-      message.success('编辑成功');
+  const handleSave = async (values: Partial<DeviceType>) => {
+    if (editingRecord && dataSource) {
+      const newRecord: DeviceType = {
+        id: editingRecord.id,
+        name: values.name || '',
+        type: values.type || '',
+        protocol: values.protocol || '',
+        ak: values.ak || '',
+        sk: values.sk || '',
+        endpoint: values.endpoint || ''
+      };
+      try {
+        const res = await updateDeviceAPI(newRecord);
+        if (res.code == 200) {
+          messageApi.success(res.message);
+          getList();
+        }
+      } catch (error) {
+        messageApi.error((error as Error).message);
+      }
     } else {
       // 新建模式
-      const newRecord: DataType = {
-        key: Date.now().toString(),
+      const newRecord: DeviceType = {
         name: values.name || '',
-        ...values
+        type: values.type || '',
+        protocol: values.protocol || '',
+        ak: values.ak || '',
+        sk: values.sk || '',
+        endpoint: values.endpoint || ''
       };
-      setDataSource([...dataSource, newRecord]);
-      message.success('新建成功');
+      try {
+        const res = await createDeviceAPI(newRecord, 'source');
+        if (res.code === 200) {
+          messageApi.success(res.message);
+          getList();
+        }
+      } catch (error) {
+        messageApi.error((error as Error).message);
+      }
     }
     handleCloseDrawer();
   };
 
   // 动态生成columns
-  const tableColumns: TableProps<DataType>['columns'] = [
+  const tableColumns: TableProps<DeviceType>['columns'] = [
     {
       title: (
         <span style={{ fontWeight: 600, color: '#1f2937' }}>设备名称</span>
@@ -188,7 +206,7 @@ const SourceManage: React.FC = () => {
     {
       title: <span style={{ fontWeight: 600, color: '#1f2937' }}>操作</span>,
       key: 'action',
-      render: (_: unknown, record: DataType) => (
+      render: (_: unknown, record: DeviceType) => (
         <Space size="small">
           <Tooltip title="编辑设备">
             <Button
@@ -215,10 +233,36 @@ const SourceManage: React.FC = () => {
     }
   ];
 
+  useEffect(() => {
+    // 1. 获取列表
+    getList();
+  }, []);
+
+  // 搜索
+  const handleSearch = (values: { name: string; endpoint: string }) => {
+    console.log(values);
+
+    const query = {
+      device_type: 'source',
+      ...values
+    };
+    getList(query);
+  };
+
+  // 重置
+  const handleReset = () => {
+    getList();
+  };
+
   return (
     <>
-      <SearchForm openDrawer={handleCreate} />
-      <Table<DataType>
+      {contextHolder}
+      <SearchForm
+        openDrawer={handleCreate}
+        onSearch={handleSearch}
+        onReset={handleReset}
+      />
+      <Table<DeviceType>
         columns={tableColumns}
         dataSource={dataSource}
         rowKey="key"
@@ -243,6 +287,19 @@ const SourceManage: React.FC = () => {
         editingRecord={editingRecord}
         onSave={handleSave}
       />
+
+      {/* 删除确认 Modal */}
+      <Modal
+        title="确认删除"
+        open={deleteModalOpen}
+        onOk={handleConfirmDelete}
+        onCancel={handleCancelDelete}
+        okText="确认"
+        cancelText="取消"
+        centered
+      >
+        <p>确定要删除设备"{deletingRecord?.name}"吗？</p>
+      </Modal>
     </>
   );
 };

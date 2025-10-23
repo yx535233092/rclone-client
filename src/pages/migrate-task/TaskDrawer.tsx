@@ -11,9 +11,9 @@ interface DataType {
   status?: '迁移中' | '完成';
   usedTime?: string;
   remainingTime?: string;
-  sourceBuket?: string;
+  sourceBucket?: string;
   sourceUrl?: string;
-  targetBuket?: string;
+  targetBucket?: string;
   targetUrl?: string;
   concurrentNum?: string;
   bandwidthLimit?: string;
@@ -72,10 +72,10 @@ const TaskDrawer: React.FC<{
           submitData = {
             name: values.deviceName,
             source: values.protocol,
-            sourceBuket: values.sourceBuket,
+            sourceBucket: values.sourceBucket,
             sourceUrl: values.sourceUrl,
             target: values.targetProtocol,
-            targetBuket: values.targetBuket,
+            targetBucket: values.targetBucket,
             targetUrl: values.targetUrl,
             concurrentNum: values.concurrentNum,
             bandwidthLimit: values.bandwidthLimit,
@@ -132,8 +132,8 @@ const TaskDrawer: React.FC<{
                   </Form.Item>
                 </Col>
                 <Col span={8}>
-                  <Form.Item name="sourceBuket" label="buket名称">
-                    <Input placeholder="请输入buket名称" />
+                  <Form.Item name="sourceBucket" label="bucket名称">
+                    <Input placeholder="请输入bucket名称" />
                   </Form.Item>
                 </Col>
                 <Col span={8}>
@@ -152,8 +152,8 @@ const TaskDrawer: React.FC<{
                   </Form.Item>
                 </Col>
                 <Col span={8}>
-                  <Form.Item name="targetBuket" label="buket名称">
-                    <Input placeholder="请输入buket名称" />
+                  <Form.Item name="targetBucket" label="bucket名称">
+                    <Input placeholder="请输入bucket名称" />
                   </Form.Item>
                 </Col>
                 <Col span={8}>
@@ -187,9 +187,9 @@ const TaskDrawer: React.FC<{
                   </Form.Item>
                 </Col>
                 <Col span={8}>
-                  <Form.Item label="buket名称">
+                  <Form.Item label="bucket名称">
                     <Input
-                      value={editingRecord.sourceBuket || '未知bucket'}
+                      value={editingRecord.sourceBucket || '未知bucket'}
                       disabled
                     />
                   </Form.Item>
@@ -218,9 +218,9 @@ const TaskDrawer: React.FC<{
                   </Form.Item>
                 </Col>
                 <Col span={8}>
-                  <Form.Item label="buket名称">
+                  <Form.Item label="bucket名称">
                     <Input
-                      value={editingRecord.targetBuket || '未知bucket'}
+                      value={editingRecord.targetBucket || '未知bucket'}
                       disabled
                     />
                   </Form.Item>
