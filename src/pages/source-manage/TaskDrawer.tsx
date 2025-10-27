@@ -29,7 +29,7 @@ const TaskDrawer: React.FC<{
         // TODO 测试数据
         form.setFieldsValue({
           name: 'test',
-          type: 'S3',
+          type: 's3',
           protocol: 'Minio',
           ak: 'minioadmin',
           sk: 'minioadmin',
@@ -103,7 +103,7 @@ const TaskDrawer: React.FC<{
                 rules={[{ required: true, message: '请选择设备类型' }]}
               >
                 <Select placeholder="请选择设备类型">
-                  <Option value="S3">Amazon S3</Option>
+                  <Option value="s3">s3</Option>
                 </Select>
               </Form.Item>
             </Col>

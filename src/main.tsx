@@ -1,6 +1,7 @@
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { HashRouter, Navigate, Route, Routes } from 'react-router';
+import '@ant-design/v5-patch-for-react-19';
 
 import LayoutPage from '@/layout/LayoutPage.tsx';
 import SourceManage from '@/pages/source-manage/index.tsx';

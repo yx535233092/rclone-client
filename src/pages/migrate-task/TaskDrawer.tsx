@@ -1,38 +1,20 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Button, Col, Drawer, Form, Input, Row, Select, Space } from 'antd';
+import type { TaskType } from '@/types/task';
+import { getDevicesAPI } from '@/apis/device';
+import type { DeviceType } from '@/types/device';
 
 const { Option } = Select;
-
-interface DataType {
-  key: string;
-  name: string;
-  source?: string;
-  target?: string;
-  status?: '迁移中' | '完成';
-  usedTime?: string;
-  remainingTime?: string;
-  sourceBucket?: string;
-  sourceUrl?: string;
-  targetBucket?: string;
-  targetUrl?: string;
-  concurrentNum?: string;
-  bandwidthLimit?: string;
-  retryCount?: string;
-  sourceDevice?: string; // 源端设备名称
-  targetDevice?: string; // 目标端设备名称
-  progress?: number; // 迁移进度百分比 (0-100)
-  migrateSpeed?: string; // 迁移速度
-  migratedSize?: string; // 已迁移大小
-  totalSize?: string; // 总大小
-}
 
 const TaskDrawer: React.FC<{
   open: boolean;
   closeDrawer: () => void;
-  editingRecord?: DataType | null;
-  onSave: (values: Partial<DataType>) => void;
+  editingRecord?: TaskType | null;
+  onSave: (values: Partial<TaskType>) => void;
 }> = ({ open, closeDrawer, editingRecord, onSave }) => {
   const [form] = Form.useForm();
+  const [sourceDevices, setSourceDevices] = useState<DeviceType[]>([]);
+  const [targetDevices, setTargetDevices] = useState<DeviceType[]>([]);
 
   // 当编辑记录改变时，更新表单值
   useEffect(() => {
@@ -40,15 +22,43 @@ const TaskDrawer: React.FC<{
       if (editingRecord) {
         // 编辑模式：只设置可编辑的字段
         form.setFieldsValue({
-          concurrentNum: editingRecord.concurrentNum,
-          bandwidthLimit: editingRecord.bandwidthLimit,
-          retryCount: editingRecord.retryCount
+          concurrent: editingRecord.concurrent,
+          limit_speed: editingRecord.limit_speed,
+          increment_circle: editingRecord.increment_circle
         });
       } else {
         form.resetFields();
+        form.setFieldsValue({
+          name: 'test',
+          source_device_id: sourceDevices[0]?.id,
+          target_device_id: targetDevices[0]?.id,
+          source_bucket_name: 'my-bucket',
+          source_url: 'test',
+          target_bucket_name: 'another-bucket',
+          target_url: 'test',
+          concurrent: 1,
+          limit_speed: 1,
+          increment_circle: 0
+        });
       }
     }
   }, [open, editingRecord, form]);
+
+  // 获取源端与目标端设备列表
+  useEffect(() => {
+    const getDevices = async () => {
+      const sourceRes = await getDevicesAPI({ device_type: 'source' });
+      const targetRes = await getDevicesAPI({ device_type: 'target' });
+
+      if (sourceRes.code === 200 && sourceRes.data) {
+        setSourceDevices(sourceRes.data);
+      }
+      if (targetRes.code === 200 && targetRes.data) {
+        setTargetDevices(targetRes.data);
+      }
+    };
+    getDevices();
+  }, []);
 
   const onClose = () => {
     form.resetFields();
@@ -63,23 +73,14 @@ const TaskDrawer: React.FC<{
         if (editingRecord) {
           // 编辑模式：只提交可编辑的字段
           submitData = {
-            concurrentNum: values.concurrentNum,
-            bandwidthLimit: values.bandwidthLimit,
-            retryCount: values.retryCount
+            concurrent: values.concurrent,
+            limit_speed: values.limit_speed,
+            increment_circle: values.increment_circle
           };
         } else {
           // 新建模式：提交所有字段
           submitData = {
-            name: values.deviceName,
-            source: values.protocol,
-            sourceBucket: values.sourceBucket,
-            sourceUrl: values.sourceUrl,
-            target: values.targetProtocol,
-            targetBucket: values.targetBucket,
-            targetUrl: values.targetUrl,
-            concurrentNum: values.concurrentNum,
-            bandwidthLimit: values.bandwidthLimit,
-            retryCount: values.retryCount
+            ...values
           };
         }
         onSave(submitData);
@@ -114,7 +115,7 @@ const TaskDrawer: React.FC<{
               <Row gutter={16}>
                 <Col span={12}>
                   <Form.Item
-                    name="deviceName"
+                    name="name"
                     label="任务名称"
                     rules={[{ required: true, message: '请输入设备名称' }]}
                   >
@@ -124,40 +125,46 @@ const TaskDrawer: React.FC<{
               </Row>
               <Row gutter={16}>
                 <Col span={8}>
-                  <Form.Item name="protocol" label="源端">
+                  <Form.Item name="source_device_id" label="源端">
                     <Select placeholder="请选择源端设备">
-                      <Option value="1">Amazon S3</Option>
-                      <Option value="2">Amazon S3</Option>
+                      {sourceDevices.map((device) => (
+                        <Option key={device.id} value={device.id}>
+                          {device.name}
+                        </Option>
+                      ))}
                     </Select>
                   </Form.Item>
                 </Col>
                 <Col span={8}>
-                  <Form.Item name="sourceBucket" label="bucket名称">
+                  <Form.Item name="source_bucket_name" label="bucket名称">
                     <Input placeholder="请输入bucket名称" />
                   </Form.Item>
                 </Col>
                 <Col span={8}>
-                  <Form.Item name="sourceUrl" label="路径">
+                  <Form.Item name="source_url" label="路径">
                     <Input style={{ width: '100%' }} placeholder="请输入路径" />
                   </Form.Item>
                 </Col>
               </Row>
               <Row gutter={16}>
                 <Col span={8}>
-                  <Form.Item name="targetProtocol" label="目标端">
+                  <Form.Item name="target_device_id" label="目标端">
                     <Select placeholder="请选择目标端设备">
-                      <Option value="1">Amazon S3</Option>
-                      <Option value="2">Amazon S3</Option>
+                      {targetDevices.map((device) => (
+                        <Option key={device.id} value={device.id}>
+                          {device.name}
+                        </Option>
+                      ))}
                     </Select>
                   </Form.Item>
                 </Col>
                 <Col span={8}>
-                  <Form.Item name="targetBucket" label="bucket名称">
+                  <Form.Item name="target_bucket_name" label="bucket名称">
                     <Input placeholder="请输入bucket名称" />
                   </Form.Item>
                 </Col>
                 <Col span={8}>
-                  <Form.Item name="targetUrl" label="路径">
+                  <Form.Item name="target_url" label="路径">
                     <Input style={{ width: '100%' }} placeholder="请输入路径" />
                   </Form.Item>
                 </Col>
@@ -169,7 +176,7 @@ const TaskDrawer: React.FC<{
               <Row gutter={16}>
                 <Col span={12}>
                   <Form.Item label="任务名称">
-                    <Input value={editingRecord.name} disabled />
+                    <Input value={editingRecord.source_device_id} disabled />
                   </Form.Item>
                 </Col>
               </Row>
@@ -177,11 +184,7 @@ const TaskDrawer: React.FC<{
                 <Col span={8}>
                   <Form.Item label="源端">
                     <Input
-                      value={
-                        editingRecord.sourceDevice ||
-                        editingRecord.source ||
-                        '未知设备'
-                      }
+                      value={editingRecord.source_device_id || '未知设备'}
                       disabled
                     />
                   </Form.Item>
@@ -189,7 +192,7 @@ const TaskDrawer: React.FC<{
                 <Col span={8}>
                   <Form.Item label="bucket名称">
                     <Input
-                      value={editingRecord.sourceBucket || '未知bucket'}
+                      value={editingRecord.source_bucket_name || '未知bucket'}
                       disabled
                     />
                   </Form.Item>
@@ -197,7 +200,7 @@ const TaskDrawer: React.FC<{
                 <Col span={8}>
                   <Form.Item label="路径">
                     <Input
-                      value={editingRecord.sourceUrl || '-'}
+                      value={editingRecord.source_url || '-'}
                       style={{ width: '100%' }}
                       disabled
                     />
@@ -208,11 +211,7 @@ const TaskDrawer: React.FC<{
                 <Col span={8}>
                   <Form.Item label="目标端">
                     <Input
-                      value={
-                        editingRecord.targetDevice ||
-                        editingRecord.target ||
-                        '未知设备'
-                      }
+                      value={editingRecord.target_device_id || '未知设备'}
                       disabled
                     />
                   </Form.Item>
@@ -220,7 +219,7 @@ const TaskDrawer: React.FC<{
                 <Col span={8}>
                   <Form.Item label="bucket名称">
                     <Input
-                      value={editingRecord.targetBucket || '未知bucket'}
+                      value={editingRecord.target_bucket_name || '未知bucket'}
                       disabled
                     />
                   </Form.Item>
@@ -228,7 +227,7 @@ const TaskDrawer: React.FC<{
                 <Col span={8}>
                   <Form.Item label="路径">
                     <Input
-                      value={editingRecord.targetUrl || '-'}
+                      value={editingRecord.target_url || '-'}
                       style={{ width: '100%' }}
                       disabled
                     />
@@ -252,22 +251,31 @@ const TaskDrawer: React.FC<{
           )}
           <Row gutter={16}>
             <Col span={12}>
-              <Form.Item name="concurrentNum" label="并发数">
+              <Form.Item name="concurrent" label="并发数">
                 <Input placeholder="请输入并发数" />
               </Form.Item>
             </Col>
           </Row>
           <Row gutter={16}>
             <Col span={12}>
-              <Form.Item name="bandwidthLimit" label="带宽限速（可选）">
-                <Input placeholder="请输入带宽限速，如：10MB/s（可选填写）" />
+              <Form.Item name="limit_speed" label="带宽限速（可选）">
+                <Input
+                  type="number"
+                  placeholder="请输入带宽限速，如：10Mb/s（可选填写）"
+                  suffix="Mb/s"
+                />
               </Form.Item>
             </Col>
           </Row>
           <Row gutter={16}>
             <Col span={12}>
-              <Form.Item name="retryCount" label="自动增量周期（可选）">
-                <Input placeholder="请输入自动增量周期，如：3600s（可选填写）" />
+              <Form.Item name="increment_circle" label="自动增量周期（可选）">
+                <Input
+                  disabled
+                  type="number"
+                  placeholder="请输入自动增量周期，如：3600s（可选填写）"
+                  suffix="s"
+                />
               </Form.Item>
             </Col>
           </Row>

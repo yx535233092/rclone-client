@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   Space,
   Table,
@@ -18,96 +18,31 @@ import {
   DeleteOutlined,
   CheckCircleOutlined
 } from '@ant-design/icons';
+import type { TaskType } from '@/types/task';
 
 const { Text } = Typography;
 
 import SearchForm from './SearchForm';
 import TaskDrawer from './TaskDrawer';
+import {
+  createTaskAPI,
+  deleteTaskAPI,
+  getTasksAPI,
+  startTaskAPI,
+  stopTaskAPI,
+  updateTaskAPI
+} from '@/apis/task';
 
-interface DataType {
-  key: string;
-  name: string;
-  source?: string;
-  target?: string;
-  status?: '迁移中' | '完成';
-  usedTime?: string;
-  remainingTime?: string;
-  age?: number;
-  address?: string;
-  tags?: string[];
-  sourceDevice?: string; // 源端设备名称
-  sourceBucket?: string; // bucket名称
-  targetDevice?: string; // 目标端设备名称
-  targetBucket?: string; // 目标端bucket名称
-  progress?: number; // 迁移进度百分比 (0-100)
-  migrateSpeed?: string; // 迁移速度
-  migratedSize?: string; // 已迁移大小
-  totalSize?: string; // 总大小
-  concurrentNum?: string; // 并发数
-  bandwidthLimit?: string; // 带宽限速
-  retryCount?: string; // 自动增量周期
-}
-
-const data: DataType[] = [
-  {
-    key: '1',
-    name: '任务001',
-    source: '设备001',
-    sourceDevice: 'Amazon S3',
-    sourceBucket: 'test-bucket-1',
-    target: '设备002',
-    targetDevice: '阿里云OSS',
-    targetBucket: 'backup-target-1',
-    status: '迁移中',
-    usedTime: '100s',
-    remainingTime: '100s',
-    progress: 65,
-    migrateSpeed: '15.2MB/s',
-    migratedSize: '2.1GB',
-    totalSize: '3.2GB'
-  },
-  {
-    key: '2',
-    name: '任务002',
-    source: '设备001',
-    sourceDevice: '设备001',
-    sourceBucket: 'backup-bucket',
-    target: '设备002',
-    targetDevice: '腾讯云COS',
-    targetBucket: 'target-bucket-2',
-    status: '完成',
-    usedTime: '500s',
-    remainingTime: '0s',
-    progress: 100,
-    migrateSpeed: '12.8MB/s',
-    migratedSize: '5.8GB',
-    totalSize: '5.8GB'
-  },
-  {
-    key: '3',
-    name: '任务003',
-    source: '设备001',
-    sourceDevice: 'OSS设备',
-    sourceBucket: 'storage-bucket',
-    target: '设备002',
-    targetDevice: '华为云OBS',
-    targetBucket: 'final-destination',
-    status: '迁移中',
-    usedTime: '200s',
-    remainingTime: '150s',
-    progress: 35,
-    migrateSpeed: '8.5MB/s',
-    migratedSize: '1.2GB',
-    totalSize: '3.4GB'
-  }
-];
+const data: TaskType[] = [];
 
 const MigrateTask: React.FC = () => {
   const [open, setOpen] = useState(false);
-  const [editingRecord, setEditingRecord] = useState<DataType | null>(null);
-  const [dataSource, setDataSource] = useState<DataType[]>(data);
+  const [editingRecord, setEditingRecord] = useState<TaskType | null>(null);
+  const [dataSource, setDataSource] = useState<TaskType[]>(data);
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
-  const [deletingRecord, setDeletingRecord] = useState<DataType | null>(null);
+  const [deletingRecord, setDeletingRecord] = useState<TaskType | null>(null);
+  const [ws, setWs] = useState<WebSocket | null>(null);
+  const dataSourceRef = useRef<TaskType[]>([]);
 
   // 打开新建抽屉
   const handleCreate = () => {
@@ -116,36 +51,56 @@ const MigrateTask: React.FC = () => {
   };
 
   // 打开编辑抽屉
-  const handleEdit = (record: DataType) => {
+  const handleEdit = (record: TaskType) => {
     setEditingRecord(record);
     setOpen(true);
   };
 
   // 暂停任务
-  const handlePause = (record: DataType) => {
-    message.info(`暂停任务: ${record.name}`);
-    // 这里可以添加实际的暂停逻辑
+  const handlePause = async (record: TaskType) => {
+    const id = record.id;
+    if (id) {
+      const res = await stopTaskAPI(id);
+      if (res.code === 200) {
+        message.success(res.message);
+        getTasks();
+      }
+    }
   };
 
   // 启动任务
-  const handleStart = (record: DataType) => {
-    message.info(`启动任务: ${record.name}`);
-    // 这里可以添加实际的启动逻辑
+  const handleReStart = async (record: TaskType) => {
+    try {
+      if (record.id) {
+        const res = await startTaskAPI(record.id);
+        if (res.code === 200) {
+          message.success(res.message);
+          getTasks();
+        }
+      }
+    } catch (error) {
+      message.error((error as Error).message);
+    }
   };
 
   // 删除记录
-  const handleDelete = (record: DataType) => {
+  const handleDelete = (record: TaskType) => {
     setDeletingRecord(record);
     setDeleteModalOpen(true);
   };
 
   // 确认删除
-  const handleConfirmDelete = () => {
-    if (deletingRecord) {
-      setDataSource(
-        dataSource.filter((item) => item.key !== deletingRecord.key)
-      );
-      message.success('删除成功');
+  const handleConfirmDelete = async () => {
+    if (deletingRecord && deletingRecord.id) {
+      try {
+        const res = await deleteTaskAPI(deletingRecord.id);
+        if (res.code === 200) {
+          message.success(res.message);
+          getTasks();
+        }
+      } catch (error) {
+        message.error((error as Error).message);
+      }
       setDeleteModalOpen(false);
       setDeletingRecord(null);
     }
@@ -164,46 +119,93 @@ const MigrateTask: React.FC = () => {
   };
 
   // 保存数据
-  const handleSave = (values: Partial<DataType>) => {
+  const handleSave = async (values: Partial<TaskType>) => {
     if (editingRecord) {
-      // 编辑模式：只更新可编辑的字段
-      setDataSource(
-        dataSource.map((item) =>
-          item.key === editingRecord.key
-            ? {
-                ...item,
-                concurrentNum: values.concurrentNum || item.concurrentNum,
-                bandwidthLimit: values.bandwidthLimit || item.bandwidthLimit,
-                retryCount: values.retryCount || item.retryCount
-              }
-            : item
-        )
-      );
-      message.success('编辑成功');
+      try {
+        // 编辑模式：只更新可编辑的字段
+        await updateTaskAPI(editingRecord.id!, values);
+        message.success('编辑成功');
+        getTasks();
+      } catch (error) {
+        message.error((error as Error).message);
+      }
     } else {
       // 新建模式
-      const newRecord: DataType = {
-        key: Date.now().toString(),
-        name: values.name || '',
-        status: '迁移中', // 新建任务默认为迁移中状态
-        progress: 0, // 初始进度为0
-        migrateSpeed: '0MB/s', // 初始速度为0
-        migratedSize: '0GB', // 初始已迁移大小为0
-        totalSize: '0GB', // 初始总大小，后续可以更新
-        ...values,
-        sourceDevice: values.source, // 保存源端设备名称
-        sourceBucket: values.sourceBucket, // 保存源端bucket名称
-        targetDevice: values.target, // 保存目标端设备名称
-        targetBucket: values.targetBucket // 保存目标端bucket名称
-      };
-      setDataSource([...dataSource, newRecord]);
-      message.success('新建成功');
+      try {
+        const res = await createTaskAPI(values as TaskType);
+        if (res.code === 200) {
+          message.success(res.message);
+          await startTaskAPI((res.data as { id: number }).id);
+          getTasks();
+        }
+      } catch (error) {
+        message.error((error as Error).message);
+      }
     }
     handleCloseDrawer();
   };
 
+  const getTasks = async () => {
+    const res = await getTasksAPI();
+    if (res.code === 200 && res.data) {
+      const newRecords = (res.data as TaskType[]).map((item) => {
+        return {
+          ...item,
+          key: item.id
+        };
+      });
+      setDataSource(newRecords as TaskType[]);
+      dataSourceRef.current = newRecords as TaskType[];
+    }
+  };
+
+  const createWs = () => {
+    const ws = new WebSocket('ws://localhost:3000');
+    setWs(ws);
+    ws.onmessage = (event) => {
+      const data = JSON.parse(event.data);
+
+      setDataSource((currentDataSource) => {
+        return currentDataSource.map((item) => {
+          if (item.id?.toString() === data.taskId) {
+            return {
+              ...item,
+              status:
+                data.taskInfo.percent === '100%' ? 'success' : item.status,
+              percent: data.taskInfo.percent,
+              downloadSpeed: data.taskInfo.downloadSpeed,
+              transferredSize: data.taskInfo.transferredSize,
+              totalSize: data.taskInfo.totalSize,
+              elapsedTime: data.taskInfo.elapsedTime,
+              remainingTime: data.taskInfo.remainingTime
+            };
+          }
+          return item;
+        });
+      });
+    };
+    ws.onopen = () => {
+      console.log('ws连接成功');
+    };
+    ws.onclose = () => {
+      console.log('ws连接关闭');
+    };
+    ws.onerror = () => {
+      console.log('ws连接错误');
+    };
+  };
+
+  useEffect(() => {
+    getTasks();
+
+    // 建立socket连接
+    if (!ws) {
+      createWs();
+    }
+  }, []);
+
   // 动态生成columns
-  const tableColumns: TableProps<DataType>['columns'] = [
+  const tableColumns: TableProps<TaskType>['columns'] = [
     {
       title: (
         <span style={{ fontWeight: 600, color: '#1f2937' }}>任务名称</span>
@@ -220,9 +222,9 @@ const MigrateTask: React.FC = () => {
     {
       title: <span style={{ fontWeight: 600, color: '#1f2937' }}>源端</span>,
       key: 'source',
-      render: (_: unknown, record: DataType) => {
-        const deviceName = record.sourceDevice || record.source || '未知设备';
-        const bucketName = record.sourceBucket || '未知bucket';
+      render: (_: unknown, record: TaskType) => {
+        const deviceName = record.source_device_id || '未知设备';
+        const bucketName = record.source_bucket_name || '未知bucket';
         return (
           <div
             style={{
@@ -243,9 +245,9 @@ const MigrateTask: React.FC = () => {
     {
       title: <span style={{ fontWeight: 600, color: '#1f2937' }}>目标端</span>,
       key: 'target',
-      render: (_: unknown, record: DataType) => {
-        const deviceName = record.targetDevice || record.target || '未知设备';
-        const bucketName = record.targetBucket || '未知bucket';
+      render: (_: unknown, record: TaskType) => {
+        const deviceName = record.target_device_id || '未知设备';
+        const bucketName = record.target_bucket_name || '未知bucket';
         return (
           <div
             style={{
@@ -266,8 +268,8 @@ const MigrateTask: React.FC = () => {
     {
       title: <span style={{ fontWeight: 600, color: '#1f2937' }}>状态</span>,
       key: 'status',
-      render: (_: unknown, record: DataType) => {
-        if (record.status === '迁移中') {
+      render: (_: unknown, record: TaskType) => {
+        if (record.status === 'migration') {
           return (
             <div
               style={{
@@ -299,11 +301,11 @@ const MigrateTask: React.FC = () => {
                     fontWeight: 600
                   }}
                 >
-                  {record.progress || 0}%
+                  {record.percent || '0%'}
                 </Text>
               </div>
               <Progress
-                percent={record.progress || 0}
+                percent={Number(record.percent?.replace('%', '')) || 0}
                 size="small"
                 showInfo={false}
                 strokeColor="#3b82f6"
@@ -320,19 +322,20 @@ const MigrateTask: React.FC = () => {
                 <div style={{ marginBottom: '2px' }}>
                   <span>速度: </span>
                   <Text style={{ color: '#059669', fontWeight: 500 }}>
-                    {record.migrateSpeed || '0MB/s'}
+                    {record.downloadSpeed || '0MB/s'}
                   </Text>
                 </div>
                 <div>
                   <span>已迁移: </span>
                   <Text style={{ color: '#1f2937', fontWeight: 500 }}>
-                    {record.migratedSize || '0GB'} / {record.totalSize || '0GB'}
+                    {record.transferredSize || '0GB'} /{' '}
+                    {record.totalSize || '0GB'}
                   </Text>
                 </div>
               </div>
             </div>
           );
-        } else if (record.status === '完成') {
+        } else if (record.status === 'success') {
           return (
             <div
               style={{
@@ -354,7 +357,7 @@ const MigrateTask: React.FC = () => {
                   icon={<CheckCircleOutlined />}
                   style={{ margin: 0, fontWeight: 500 }}
                 >
-                  完成
+                  迁移成功
                 </Tag>
               </div>
               <div
@@ -368,8 +371,14 @@ const MigrateTask: React.FC = () => {
               </div>
             </div>
           );
+        } else if (record.status === 'stopped') {
+          return <Tag color="red">{'已停止'}</Tag>;
+        } else if (record.status === 'failed') {
+          return <Tag color="red">{'迁移失败'}</Tag>;
+        } else if (record.status === 'init') {
+          return <Tag>{'初始化中'}</Tag>;
         }
-        return <Tag>{record.status || '未知'}</Tag>;
+        return <Tag>{'未知状态'}</Tag>;
       },
       width: 220
     },
@@ -377,10 +386,12 @@ const MigrateTask: React.FC = () => {
       title: (
         <span style={{ fontWeight: 600, color: '#1f2937' }}>已用时间</span>
       ),
-      dataIndex: 'usedTime',
+      dataIndex: 'elapsedTime',
       key: 'usedTime',
       render: (text: string) => (
-        <Text style={{ color: '#64748b', fontSize: '13px' }}>{text}</Text>
+        <Text style={{ color: '#64748b', fontSize: '13px' }}>
+          {text || '0s'}
+        </Text>
       ),
       width: 100
     },
@@ -391,17 +402,19 @@ const MigrateTask: React.FC = () => {
       dataIndex: 'remainingTime',
       key: 'remainingTime',
       render: (text: string) => (
-        <Text style={{ color: '#ef4444', fontSize: '13px' }}>{text}</Text>
+        <Text style={{ color: '#ef4444', fontSize: '13px' }}>
+          {text || '0s'}
+        </Text>
       ),
       width: 100
     },
     {
       title: <span style={{ fontWeight: 600, color: '#1f2937' }}>操作</span>,
       key: 'action',
-      render: (_: unknown, record: DataType) => (
+      render: (_: unknown, record: TaskType) => (
         <Space size="small">
-          {record.status === '迁移中' && (
-            <Tooltip title="暂停任务">
+          {record.status === 'migration' && (
+            <Tooltip title="停止任务">
               <Button
                 type="text"
                 size="small"
@@ -411,26 +424,29 @@ const MigrateTask: React.FC = () => {
               />
             </Tooltip>
           )}
-          {record.status === '完成' && (
-            <Tooltip title="重新启动">
-              <Button
-                type="text"
-                size="small"
-                icon={<PlayCircleOutlined />}
-                onClick={() => handleStart(record)}
-                style={{ color: '#10b981' }}
-              />
-            </Tooltip>
+          {record.status === 'stopped' && (
+            <>
+              <Tooltip title="重新启动">
+                <Button
+                  type="text"
+                  size="small"
+                  icon={<PlayCircleOutlined />}
+                  onClick={() => handleReStart(record)}
+                  style={{ color: '#10b981' }}
+                />
+              </Tooltip>
+              <Tooltip title="编辑任务">
+                <Button
+                  type="text"
+                  size="small"
+                  icon={<EditOutlined />}
+                  onClick={() => handleEdit(record)}
+                  style={{ color: '#3b82f6' }}
+                />
+              </Tooltip>
+            </>
           )}
-          <Tooltip title="编辑任务">
-            <Button
-              type="text"
-              size="small"
-              icon={<EditOutlined />}
-              onClick={() => handleEdit(record)}
-              style={{ color: '#3b82f6' }}
-            />
-          </Tooltip>
+
           <Tooltip title="删除任务">
             <Button
               type="text"
@@ -450,7 +466,7 @@ const MigrateTask: React.FC = () => {
   return (
     <>
       <SearchForm openDrawer={handleCreate} />
-      <Table<DataType>
+      <Table<TaskType>
         columns={tableColumns}
         dataSource={dataSource}
         rowKey="key"
