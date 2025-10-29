@@ -2,7 +2,7 @@ import axios from 'axios';
 import { message } from 'antd';
 
 const request = axios.create({
-  baseURL: '/api',
+  baseURL: 'http://120.26.171.149:3000/api',
   timeout: 5000
 });
 
