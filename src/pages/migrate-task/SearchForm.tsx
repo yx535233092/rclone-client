@@ -1,9 +1,32 @@
 import React from 'react';
-import { Button, Form, Select } from 'antd';
+import { Button, Form, Input, Select } from 'antd';
+import type { RemoteResponseType } from '@/types/remote';
 const { Option } = Select;
 
-const SearchForm: React.FC<{ openDrawer: () => void }> = ({ openDrawer }) => {
+interface SearchFormValues {
+  name: string;
+  sourceDeviceId: number;
+  targetDeviceId: number;
+}
+
+const SearchForm: React.FC<{
+  openDrawer: () => void;
+  sourceDevices: RemoteResponseType[];
+  targetDevices: RemoteResponseType[];
+  onSearch: (values: SearchFormValues) => void;
+  onReset: () => void;
+}> = ({ openDrawer, sourceDevices, targetDevices, onSearch, onReset }) => {
   const [form] = Form.useForm();
+
+  const handleSearch = () => {
+    const values = form.getFieldsValue(true) as SearchFormValues;
+    onSearch(values);
+  };
+
+  const handleReset = () => {
+    form.resetFields();
+    onReset();
+  };
 
   return (
     <Form
@@ -17,36 +40,51 @@ const SearchForm: React.FC<{ openDrawer: () => void }> = ({ openDrawer }) => {
       form={form}
     >
       <div className="flex gap-4">
-        <Form.Item label="迁移任务">
-          <Select placeholder="请选择迁移任务" style={{ width: 180 }}>
-            <Option value="1">迁移任务1</Option>
-            <Option value="2">迁移任务2</Option>
-            <Option value="3">迁移任务3</Option>
+        <Form.Item label="迁移任务" name="name">
+          <Input placeholder="请输入迁移任务" style={{ width: 180 }} />
+        </Form.Item>
+        <Form.Item label="源端设备" name="sourceDeviceId">
+          <Select
+            placeholder="请选择源端设备"
+            style={{ width: 180 }}
+            allowClear
+          >
+            {sourceDevices.map((device) => (
+              <Option key={device.id} value={device.id}>
+                {device.name}
+              </Option>
+            ))}
           </Select>
         </Form.Item>
-        <Form.Item label="源端设备">
-          <Select placeholder="请选择源端设备" style={{ width: 180 }}>
-            <Option value="1">源端设备1</Option>
-            <Option value="2">源端设备2</Option>
-            <Option value="3">源端设备3</Option>
-          </Select>
-        </Form.Item>
-        <Form.Item label="目标端设备">
-          <Select placeholder="请选择目标端设备" style={{ width: 180 }}>
-            <Option value="1">目标端设备1</Option>
-            <Option value="2">目标端设备2</Option>
-            <Option value="3">目标端设备3</Option>
+        <Form.Item label="目标端设备" name="targetDeviceId">
+          <Select
+            placeholder="请选择目标端设备"
+            style={{ width: 180 }}
+            allowClear
+          >
+            {targetDevices.map((device) => (
+              <Option key={device.id} value={device.id}>
+                {device.name}
+              </Option>
+            ))}
           </Select>
         </Form.Item>
       </div>
 
       <div className="flex">
         <Form.Item>
-          <Button type="primary">搜索</Button>
+          <Button color="purple" variant="outlined" onClick={handleSearch}>
+            搜索
+          </Button>
+        </Form.Item>
+        <Form.Item>
+          <Button color="green" variant="solid" onClick={handleReset}>
+            重置
+          </Button>
         </Form.Item>
         <Form.Item>
           <Button type="primary" onClick={openDrawer}>
-            新建任务
+            新增
           </Button>
         </Form.Item>
       </div>

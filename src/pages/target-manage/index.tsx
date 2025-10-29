@@ -10,39 +10,48 @@ import {
 } from 'antd';
 import type { TableProps } from 'antd';
 import { EditOutlined, DeleteOutlined } from '@ant-design/icons';
-
 const { Text } = Typography;
 
 import SearchForm from './SearchForm';
 import TaskDrawer from './TaskDrawer';
-
-import type { DeviceType } from '@/types/device';
 import {
-  createDeviceAPI,
-  deleteDeviceAPI,
-  getDevicesAPI,
-  updateDeviceAPI
-} from '@/apis/device';
+  createRemoteAPI,
+  getRemotesAPI,
+  updateRemoteAPI,
+  deleteRemoteAPI
+} from '@/api/remote';
+import type { RemoteModelType } from '@/types/remote';
 
 const SourceManage: React.FC = () => {
   const [open, setOpen] = useState(false);
-  const [editingRecord, setEditingRecord] = useState<DeviceType | null>(null);
-  const [dataSource, setDataSource] = useState<DeviceType[]>();
+  const [editingRecord, setEditingRecord] = useState<RemoteModelType | null>(
+    null
+  );
+  const [dataSource, setDataSource] = useState<RemoteModelType[]>([]);
+  const [filteredDataSource, setFilteredDataSource] = useState<
+    RemoteModelType[]
+  >([]);
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
-  const [deletingRecord, setDeletingRecord] = useState<DeviceType | null>(null);
+  const [deletingRecord, setDeletingRecord] = useState<RemoteModelType | null>(
+    null
+  );
   const [messageApi, contextHolder] = message.useMessage();
 
   // 获取列表
-  const getList = async (query = { device_type: 'target' }) => {
-    const res = await getDevicesAPI(query);
+  const getList = async () => {
+    const res = await getRemotesAPI({ type: 'target' });
     if (res.code === 200 && res.data) {
       const listData = res.data.map((item) => {
-        return {
+        const config = JSON.parse(item.config_json);
+        const newItem = {
+          key: item.id,
           ...item,
-          key: item.id
+          ...config
         };
+        return newItem;
       });
       setDataSource(listData);
+      setFilteredDataSource(listData);
     }
   };
 
@@ -53,13 +62,13 @@ const SourceManage: React.FC = () => {
   };
 
   // 打开编辑抽屉
-  const handleEdit = (record: DeviceType) => {
+  const handleEdit = (record: RemoteModelType) => {
     setEditingRecord(record);
     setOpen(true);
   };
 
   // 删除记录
-  const handleDelete = (record: DeviceType) => {
+  const handleDelete = (record: RemoteModelType) => {
     setDeletingRecord(record);
     setDeleteModalOpen(true);
   };
@@ -68,13 +77,13 @@ const SourceManage: React.FC = () => {
   const handleConfirmDelete = async () => {
     if (deletingRecord && dataSource) {
       try {
-        const res = await deleteDeviceAPI(deletingRecord.id!);
+        const res = await deleteRemoteAPI(deletingRecord.id!);
         if (res.code === 200) {
           messageApi.success(res.message);
           getList();
         }
       } catch (error) {
-        messageApi.error((error as Error).message);
+        console.error(error);
       }
       setDeleteModalOpen(false);
       setDeletingRecord(null);
@@ -94,51 +103,53 @@ const SourceManage: React.FC = () => {
   };
 
   // 保存数据
-  const handleSave = async (values: Partial<DeviceType>) => {
+  const handleSave = async (values: Partial<RemoteModelType>) => {
+    // 编辑模式
     if (editingRecord && dataSource) {
-      const newRecord: DeviceType = {
-        id: editingRecord.id,
-        name: values.name || '',
-        type: values.type || '',
-        protocol: values.protocol || '',
-        ak: values.ak || '',
-        sk: values.sk || '',
-        endpoint: values.endpoint || ''
+      const newRecord = {
+        name: values.name!,
+        type: 'target' as const,
+        remote_type: values.remote_type!,
+        protocol: values.protocol!,
+        ak: values.ak!,
+        sk: values.sk!,
+        endpoint: values.endpoint!
       };
       try {
-        const res = await updateDeviceAPI(newRecord);
+        const res = await updateRemoteAPI(editingRecord.id!, newRecord);
         if (res.code == 200) {
           messageApi.success(res.message);
           getList();
         }
       } catch (error) {
-        messageApi.error((error as Error).message);
+        console.error(error);
       }
     } else {
       // 新建模式
-      const newRecord: DeviceType = {
-        name: values.name || '',
-        type: values.type || '',
-        protocol: values.protocol || '',
-        ak: values.ak || '',
-        sk: values.sk || '',
-        endpoint: values.endpoint || ''
+      const newRecord = {
+        name: values.name!,
+        type: 'target' as const,
+        remote_type: values.remote_type!,
+        protocol: values.protocol!,
+        ak: values.ak!,
+        sk: values.sk!,
+        endpoint: values.endpoint!
       };
       try {
-        const res = await createDeviceAPI(newRecord, 'target');
+        const res = await createRemoteAPI(newRecord);
         if (res.code === 200) {
           messageApi.success(res.message);
           getList();
         }
       } catch (error) {
-        messageApi.error((error as Error).message);
+        console.error(error);
       }
     }
     handleCloseDrawer();
   };
 
   // 动态生成columns
-  const tableColumns: TableProps<DeviceType>['columns'] = [
+  const tableColumns: TableProps<RemoteModelType>['columns'] = [
     {
       title: (
         <span style={{ fontWeight: 600, color: '#1f2937' }}>设备名称</span>
@@ -156,8 +167,8 @@ const SourceManage: React.FC = () => {
       title: (
         <span style={{ fontWeight: 600, color: '#1f2937' }}>设备类型</span>
       ),
-      dataIndex: 'type',
-      key: 'type',
+      dataIndex: 'remote_type',
+      key: 'remote_type',
       render: (text: string) => (
         <Text style={{ color: '#64748b', fontSize: '13px' }}>{text}</Text>
       ),
@@ -206,7 +217,7 @@ const SourceManage: React.FC = () => {
     {
       title: <span style={{ fontWeight: 600, color: '#1f2937' }}>操作</span>,
       key: 'action',
-      render: (_: unknown, record: DeviceType) => (
+      render: (_: unknown, record: RemoteModelType) => (
         <Space size="small">
           <Tooltip title="编辑设备">
             <Button
@@ -234,24 +245,27 @@ const SourceManage: React.FC = () => {
   ];
 
   useEffect(() => {
-    // 1. 获取列表
+    // 获取列表
     getList();
   }, []);
 
   // 搜索
   const handleSearch = (values: { name: string; endpoint: string }) => {
-    console.log(values);
-
-    const query = {
-      device_type: 'target',
-      ...values
-    };
-    getList(query);
+    const { name, endpoint } = values;
+    const filtered = dataSource.filter((item) => {
+      const nameMatch =
+        !name || item.name?.toLowerCase().includes(name.toLowerCase());
+      const endpointMatch =
+        !endpoint ||
+        item.endpoint?.toLowerCase().includes(endpoint.toLowerCase());
+      return nameMatch && endpointMatch;
+    });
+    setFilteredDataSource(filtered);
   };
 
   // 重置
   const handleReset = () => {
-    getList();
+    setFilteredDataSource(dataSource);
   };
 
   return (
@@ -262,18 +276,10 @@ const SourceManage: React.FC = () => {
         onSearch={handleSearch}
         onReset={handleReset}
       />
-      <Table<DeviceType>
+      <Table
         columns={tableColumns}
-        dataSource={dataSource}
+        dataSource={filteredDataSource}
         rowKey="key"
-        pagination={{
-          showSizeChanger: true,
-          showQuickJumper: true,
-          showTotal: (total, range) =>
-            `第 ${range[0]}-${range[1]} 条，共 ${total} 条记录`,
-          pageSizeOptions: ['10', '20', '50', '100'],
-          defaultPageSize: 10
-        }}
         scroll={{ x: 1000 }}
         style={{
           backgroundColor: '#ffffff'

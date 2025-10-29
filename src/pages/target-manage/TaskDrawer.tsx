@@ -1,14 +1,14 @@
 import React, { useEffect } from 'react';
 import { Button, Col, Drawer, Form, Input, Row, Select, Space } from 'antd';
-import type { DeviceType } from '@/types/device';
+import type { RemoteModelType } from '@/types/remote';
 
 const { Option } = Select;
 
 const TaskDrawer: React.FC<{
   open: boolean;
   closeDrawer: () => void;
-  editingRecord?: DeviceType | null;
-  onSave: (values: DeviceType) => void;
+  editingRecord?: RemoteModelType | null;
+  onSave: (values: RemoteModelType) => void;
 }> = ({ open, closeDrawer, editingRecord, onSave }) => {
   const [form] = Form.useForm();
 
@@ -18,7 +18,7 @@ const TaskDrawer: React.FC<{
       if (editingRecord) {
         form.setFieldsValue({
           name: editingRecord.name,
-          type: editingRecord.type,
+          remote_type: editingRecord.remote_type,
           protocol: editingRecord.protocol,
           ak: editingRecord.ak,
           sk: editingRecord.sk,
@@ -28,8 +28,8 @@ const TaskDrawer: React.FC<{
         form.resetFields();
         // TODO 测试数据
         form.setFieldsValue({
-          name: 'test',
-          type: 's3',
+          name: Date.now(),
+          remote_type: 's3',
           protocol: 'Minio',
           ak: 'minioadmin',
           sk: 'minioadmin',
@@ -98,7 +98,7 @@ const TaskDrawer: React.FC<{
           <Row gutter={16}>
             <Col span={12}>
               <Form.Item
-                name="type"
+                name="remote_type"
                 label="设备类型"
                 rules={[{ required: true, message: '请选择设备类型' }]}
               >

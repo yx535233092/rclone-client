@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState, useCallback } from 'react';
 import {
   Space,
   Table,
@@ -18,31 +18,38 @@ import {
   DeleteOutlined,
   CheckCircleOutlined
 } from '@ant-design/icons';
-import type { TaskType } from '@/types/task';
-
 const { Text } = Typography;
 
 import SearchForm from './SearchForm';
 import TaskDrawer from './TaskDrawer';
+import { getRemotesAPI } from '@/api/remote';
 import {
-  createTaskAPI,
-  deleteTaskAPI,
-  getTasksAPI,
-  startTaskAPI,
-  stopTaskAPI,
-  updateTaskAPI
-} from '@/apis/task';
+  createJobAPI,
+  getJobsAPI,
+  deleteJobAPI,
+  stopJobAPI,
+  restartJobAPI,
+  updateJobAPI
+} from '@/api/job';
+import type { JobModelType, JobParamsType } from '@/types/job';
+import type { RemoteResponseType } from '@/types/remote';
 
-const data: TaskType[] = [];
+const data: JobModelType[] = [];
 
 const MigrateTask: React.FC = () => {
   const [open, setOpen] = useState(false);
-  const [editingRecord, setEditingRecord] = useState<TaskType | null>(null);
-  const [dataSource, setDataSource] = useState<TaskType[]>(data);
+  const [editingRecord, setEditingRecord] = useState<JobModelType | null>(null);
+  const [dataSource, setDataSource] = useState<JobModelType[]>(data);
+  const [filteredDataSource, setFilteredDataSource] =
+    useState<JobModelType[]>(data);
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
-  const [deletingRecord, setDeletingRecord] = useState<TaskType | null>(null);
+  const [deletingRecord, setDeletingRecord] = useState<JobModelType | null>(
+    null
+  );
   const [ws, setWs] = useState<WebSocket | null>(null);
-  const dataSourceRef = useRef<TaskType[]>([]);
+  const dataSourceRef = useRef<JobModelType[]>([]);
+  const [sourceDevices, setSourceDevices] = useState<RemoteResponseType[]>([]);
+  const [targetDevices, setTargetDevices] = useState<RemoteResponseType[]>([]);
 
   // 打开新建抽屉
   const handleCreate = () => {
@@ -51,31 +58,31 @@ const MigrateTask: React.FC = () => {
   };
 
   // 打开编辑抽屉
-  const handleEdit = (record: TaskType) => {
+  const handleEdit = (record: JobModelType) => {
     setEditingRecord(record);
     setOpen(true);
   };
 
-  // 暂停任务
-  const handlePause = async (record: TaskType) => {
+  // 停止任务
+  const handleStop = async (record: JobModelType) => {
     const id = record.id;
     if (id) {
-      const res = await stopTaskAPI(id);
+      const res = await stopJobAPI(id);
       if (res.code === 200) {
         message.success(res.message);
-        getTasks();
+        getJobs();
       }
     }
   };
 
-  // 启动任务
-  const handleReStart = async (record: TaskType) => {
+  // 重启任务
+  const handleReStart = async (record: JobModelType) => {
     try {
       if (record.id) {
-        const res = await startTaskAPI(record.id);
+        const res = await restartJobAPI(record.id);
         if (res.code === 200) {
           message.success(res.message);
-          getTasks();
+          getJobs();
         }
       }
     } catch (error) {
@@ -84,7 +91,7 @@ const MigrateTask: React.FC = () => {
   };
 
   // 删除记录
-  const handleDelete = (record: TaskType) => {
+  const handleDelete = (record: JobModelType) => {
     setDeletingRecord(record);
     setDeleteModalOpen(true);
   };
@@ -93,13 +100,13 @@ const MigrateTask: React.FC = () => {
   const handleConfirmDelete = async () => {
     if (deletingRecord && deletingRecord.id) {
       try {
-        const res = await deleteTaskAPI(deletingRecord.id);
+        const res = await deleteJobAPI(deletingRecord.id);
         if (res.code === 200) {
           message.success(res.message);
-          getTasks();
+          getJobs();
         }
       } catch (error) {
-        message.error((error as Error).message);
+        console.error(error);
       }
       setDeleteModalOpen(false);
       setDeletingRecord(null);
@@ -119,69 +126,82 @@ const MigrateTask: React.FC = () => {
   };
 
   // 保存数据
-  const handleSave = async (values: Partial<TaskType>) => {
+  const handleSave = async (values: Partial<JobParamsType>) => {
     if (editingRecord) {
       try {
         // 编辑模式：只更新可编辑的字段
-        await updateTaskAPI(editingRecord.id!, values);
-        message.success('编辑成功');
-        getTasks();
+        const res = await updateJobAPI(
+          editingRecord.id!,
+          values as JobParamsType
+        );
+        if (res.code === 200) {
+          message.success(res.message);
+          getJobs();
+        }
+        getJobs();
       } catch (error) {
         message.error((error as Error).message);
       }
     } else {
       // 新建模式
       try {
-        const res = await createTaskAPI(values as TaskType);
+        const res = await createJobAPI(values as JobParamsType);
         if (res.code === 200) {
           message.success(res.message);
-          await startTaskAPI((res.data as { id: number }).id);
-          getTasks();
+          // await startTaskAPI((res.data as { id: number }).id);
+          getJobs();
         }
       } catch (error) {
-        message.error((error as Error).message);
+        console.error(error);
       }
     }
     handleCloseDrawer();
   };
 
-  const getTasks = async () => {
-    const res = await getTasksAPI();
-    if (res.code === 200 && res.data) {
-      const newRecords = (res.data as TaskType[]).map((item) => {
-        return {
-          ...item,
-          key: item.id
-        };
-      });
-      setDataSource(newRecords as TaskType[]);
-      dataSourceRef.current = newRecords as TaskType[];
+  // 获取任务列表
+  const getJobs = async () => {
+    try {
+      const res = await getJobsAPI();
+      if (res.code === 200 && res.data) {
+        const newRecords: JobModelType[] = res.data.map((item) => {
+          return {
+            ...item,
+            key: item.id,
+            rcloneData: null
+          };
+        });
+        setDataSource(newRecords);
+        setFilteredDataSource(newRecords);
+        dataSourceRef.current = newRecords;
+      }
+    } catch (error) {
+      console.error(error);
     }
   };
 
-  const createWs = () => {
+  // 创建ws连接
+  const createWs = useCallback(() => {
     const ws = new WebSocket('ws://localhost:3000');
     setWs(ws);
     ws.onmessage = (event) => {
-      const data = JSON.parse(event.data);
-
+      const { jobId, data, finish } = JSON.parse(event.data);
+      if (finish) {
+        getJobs();
+        return;
+      }
       setDataSource((currentDataSource) => {
-        return currentDataSource.map((item) => {
-          if (item.id?.toString() === data.taskId) {
+        const updated = currentDataSource.map((item) => {
+          if (item.id === jobId) {
             return {
               ...item,
-              status:
-                data.taskInfo.percent === '100%' ? 'success' : item.status,
-              percent: data.taskInfo.percent,
-              downloadSpeed: data.taskInfo.downloadSpeed,
-              transferredSize: data.taskInfo.transferredSize,
-              totalSize: data.taskInfo.totalSize,
-              elapsedTime: data.taskInfo.elapsedTime,
-              remainingTime: data.taskInfo.remainingTime
+              status: 'RUNNING',
+              rcloneData: data
             };
           }
           return item;
         });
+        setFilteredDataSource(updated);
+        return updated;
       });
     };
     ws.onopen = () => {
@@ -193,19 +213,66 @@ const MigrateTask: React.FC = () => {
     ws.onerror = () => {
       console.log('ws连接错误');
     };
+  }, []);
+
+  // 获取设备列表
+  const getDevices = async () => {
+    try {
+      const sourceDevices = await getRemotesAPI({ type: 'source' });
+      const targetDevices = await getRemotesAPI({ type: 'target' });
+      if (sourceDevices.code === 200 && sourceDevices.data) {
+        setSourceDevices(sourceDevices.data);
+      }
+      if (targetDevices.code === 200 && targetDevices.data) {
+        setTargetDevices(targetDevices.data);
+      }
+    } catch (error) {
+      console.error(error);
+    }
+  };
+
+  // 搜索
+  const handleSearch = (values: {
+    name: string;
+    sourceDeviceId: number;
+    targetDeviceId: number;
+  }) => {
+    const { name, sourceDeviceId, targetDeviceId } = values;
+    const filtered = dataSource.filter((item) => {
+      const nameMatch =
+        !name || item.name?.toLowerCase().includes(name.toLowerCase());
+
+      // 根据设备名称匹配，因为JobModelType中没有source_remote_id字段
+      const sourceMatch =
+        !sourceDeviceId ||
+        sourceDevices.find((device) => device.id === sourceDeviceId)?.name ===
+          item.source_remote;
+      const targetMatch =
+        !targetDeviceId ||
+        targetDevices.find((device) => device.id === targetDeviceId)?.name ===
+          item.target_remote;
+
+      return nameMatch && sourceMatch && targetMatch;
+    });
+    setFilteredDataSource(filtered);
+  };
+
+  // 重置
+  const handleReset = () => {
+    setFilteredDataSource(dataSource);
   };
 
   useEffect(() => {
-    getTasks();
-
+    getJobs();
+    getDevices();
     // 建立socket连接
     if (!ws) {
       createWs();
     }
-  }, []);
+  }, [ws, createWs]);
 
   // 动态生成columns
-  const tableColumns: TableProps<TaskType>['columns'] = [
+  const tableColumns: TableProps<JobModelType>['columns'] = [
     {
       title: (
         <span style={{ fontWeight: 600, color: '#1f2937' }}>任务名称</span>
@@ -222,9 +289,8 @@ const MigrateTask: React.FC = () => {
     {
       title: <span style={{ fontWeight: 600, color: '#1f2937' }}>源端</span>,
       key: 'source',
-      render: (_: unknown, record: TaskType) => {
-        const deviceName = record.source_device_id || '未知设备';
-        const bucketName = record.source_bucket_name || '未知bucket';
+      render: (_: unknown, record: JobModelType) => {
+        const sourceRemote = record.source_remote || '未知设备';
         return (
           <div
             style={{
@@ -235,7 +301,7 @@ const MigrateTask: React.FC = () => {
             }}
           >
             <Text style={{ color: '#0369a1', fontSize: '13px' }}>
-              {deviceName}：{bucketName}
+              {sourceRemote}
             </Text>
           </div>
         );
@@ -245,9 +311,8 @@ const MigrateTask: React.FC = () => {
     {
       title: <span style={{ fontWeight: 600, color: '#1f2937' }}>目标端</span>,
       key: 'target',
-      render: (_: unknown, record: TaskType) => {
-        const deviceName = record.target_device_id || '未知设备';
-        const bucketName = record.target_bucket_name || '未知bucket';
+      render: (_: unknown, record: JobModelType) => {
+        const targetRemote = record.target_remote || '未知设备';
         return (
           <div
             style={{
@@ -258,7 +323,7 @@ const MigrateTask: React.FC = () => {
             }}
           >
             <Text style={{ color: '#d97706', fontSize: '13px' }}>
-              {deviceName}：{bucketName}
+              {targetRemote}
             </Text>
           </div>
         );
@@ -268,117 +333,158 @@ const MigrateTask: React.FC = () => {
     {
       title: <span style={{ fontWeight: 600, color: '#1f2937' }}>状态</span>,
       key: 'status',
-      render: (_: unknown, record: TaskType) => {
-        if (record.status === 'migration') {
-          return (
-            <div
-              style={{
-                padding: '8px',
-                background: '#f0f9ff',
-                borderRadius: '6px',
-                border: '1px solid #e0f2fe'
-              }}
-            >
+      render: (_: unknown, record: JobModelType) => {
+        switch (record.status) {
+          case 'NEW':
+            return <Tag color="processing">{'等待启动'}</Tag>;
+          case 'RUNNING':
+            return (
               <div
                 style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  marginBottom: '6px',
-                  gap: '8px'
+                  padding: '8px',
+                  background: '#f0f9ff',
+                  borderRadius: '6px',
+                  border: '1px solid #e0f2fe'
                 }}
               >
-                <Tag
-                  color="processing"
-                  icon={<PlayCircleOutlined />}
-                  style={{ margin: 0, fontWeight: 500 }}
-                >
-                  迁移中
-                </Tag>
-                <Text
+                <div
                   style={{
-                    fontSize: '12px',
-                    color: '#0369a1',
-                    fontWeight: 600
+                    display: 'flex',
+                    alignItems: 'center',
+                    marginBottom: '6px',
+                    gap: '8px'
                   }}
                 >
-                  {record.percent || '0%'}
-                </Text>
-              </div>
-              <Progress
-                percent={Number(record.percent?.replace('%', '')) || 0}
-                size="small"
-                showInfo={false}
-                strokeColor="#3b82f6"
-                trailColor="#e0f2fe"
-                style={{ marginBottom: '6px' }}
-              />
-              <div
-                style={{
-                  fontSize: '11px',
-                  color: '#64748b',
-                  lineHeight: '16px'
-                }}
-              >
-                <div style={{ marginBottom: '2px' }}>
-                  <span>速度: </span>
-                  <Text style={{ color: '#059669', fontWeight: 500 }}>
-                    {record.downloadSpeed || '0MB/s'}
+                  <Tag
+                    color="processing"
+                    icon={<PlayCircleOutlined />}
+                    style={{ margin: 0, fontWeight: 500 }}
+                  >
+                    迁移中
+                  </Tag>
+                  <Text
+                    style={{
+                      fontSize: '12px',
+                      color: '#0369a1',
+                      fontWeight: 600
+                    }}
+                  >
+                    {record.rcloneData?.stats.bytes
+                      ? (
+                          ((record.rcloneData?.stats.bytes || 0) /
+                            (record.rcloneData?.stats.totalBytes || 1024)) *
+                          100
+                        ).toFixed(2) + '%'
+                      : '0%'}
                   </Text>
                 </div>
-                <div>
-                  <span>已迁移: </span>
-                  <Text style={{ color: '#1f2937', fontWeight: 500 }}>
-                    {record.transferredSize || '0GB'} /{' '}
-                    {record.totalSize || '0GB'}
-                  </Text>
-                </div>
-              </div>
-            </div>
-          );
-        } else if (record.status === 'success') {
-          return (
-            <div
-              style={{
-                padding: '8px',
-                background: '#f0fdf4',
-                borderRadius: '6px',
-                border: '1px solid #dcfce7'
-              }}
-            >
-              <div
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  marginBottom: '4px'
-                }}
-              >
-                <Tag
-                  color="success"
-                  icon={<CheckCircleOutlined />}
-                  style={{ margin: 0, fontWeight: 500 }}
+                <Progress
+                  percent={
+                    record.rcloneData?.stats.bytes
+                      ? Number(
+                          (
+                            (record.rcloneData?.stats.bytes /
+                              record.rcloneData?.stats.totalBytes) *
+                            100
+                          ).toFixed(2)
+                        )
+                      : 0
+                  }
+                  size="small"
+                  showInfo={false}
+                  strokeColor="#3b82f6"
+                  trailColor="#e0f2fe"
+                  style={{ marginBottom: '6px' }}
+                />
+                <div
+                  style={{
+                    fontSize: '11px',
+                    color: '#64748b',
+                    lineHeight: '16px'
+                  }}
                 >
-                  迁移成功
-                </Tag>
+                  <div style={{ marginBottom: '2px' }}>
+                    <span>速度: </span>
+                    <Text style={{ color: '#059669', fontWeight: 500 }}>
+                      {record.rcloneData?.stats.speed
+                        ? (
+                            record.rcloneData?.stats.speed /
+                            1024 /
+                            1024
+                          ).toFixed(2) + 'MB/s'
+                        : '0MB/s'}
+                    </Text>
+                  </div>
+                  <div>
+                    <span>已迁移: </span>
+                    <Text style={{ color: '#1f2937', fontWeight: 500 }}>
+                      {record.rcloneData?.stats.bytes
+                        ? (record.rcloneData?.stats.bytes / 1024 / 1024)
+                            .toString()
+                            .slice(0, 5) + 'MB'
+                        : '0MB'}{' '}
+                      /{' '}
+                      {record.rcloneData?.stats.totalBytes
+                        ? (record.rcloneData?.stats.totalBytes / 1024 / 1024)
+                            .toString()
+                            .slice(0, 5) + 'MB'
+                        : '0MB'}
+                    </Text>
+                  </div>
+                </div>
               </div>
+            );
+          case 'COMPLETED':
+            return (
               <div
                 style={{
-                  fontSize: '11px',
-                  color: '#16a34a',
-                  fontWeight: 500
+                  padding: '8px',
+                  background: '#f0fdf4',
+                  borderRadius: '6px',
+                  border: '1px solid #dcfce7'
                 }}
               >
-                总计: {record.totalSize || '0GB'}
+                <div
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    marginBottom: '4px'
+                  }}
+                >
+                  <Tag
+                    color="success"
+                    icon={<CheckCircleOutlined />}
+                    style={{ margin: 0, fontWeight: 500 }}
+                  >
+                    迁移成功
+                  </Tag>
+                </div>
+                <div
+                  style={{
+                    fontSize: '11px',
+                    color: '#16a34a',
+                    fontWeight: 500
+                  }}
+                >
+                  {record.total_size_bytes === 0
+                    ? '数据已迁移'
+                    : '总计: ' +
+                      (record.total_size_bytes
+                        ? record.total_size_bytes / 1024 / 1024
+                        : 0
+                      ).toFixed(2) +
+                      'MB'}
+                </div>
               </div>
-            </div>
-          );
-        } else if (record.status === 'stopped') {
-          return <Tag color="red">{'已停止'}</Tag>;
-        } else if (record.status === 'failed') {
-          return <Tag color="red">{'迁移失败'}</Tag>;
-        } else if (record.status === 'init') {
-          return <Tag>{'初始化中'}</Tag>;
+            );
+
+          case 'FAILED':
+            return <Tag color="red">{'迁移失败'}</Tag>;
+          case 'CANCELED':
+            return <Tag color="yellow">{'迁移停止'}</Tag>;
+          default:
+            return <Tag>{'未知状态'}</Tag>;
         }
-        return <Tag>{'未知状态'}</Tag>;
       },
       width: 220
     },
@@ -386,11 +492,12 @@ const MigrateTask: React.FC = () => {
       title: (
         <span style={{ fontWeight: 600, color: '#1f2937' }}>已用时间</span>
       ),
-      dataIndex: 'elapsedTime',
       key: 'usedTime',
-      render: (text: string) => (
+      render: (_: unknown, record: JobModelType) => (
         <Text style={{ color: '#64748b', fontSize: '13px' }}>
-          {text || '0s'}
+          {record.rcloneData?.stats?.elapsedTime
+            ? record.rcloneData?.stats?.elapsedTime.toFixed(0) + 's'
+            : '-'}
         </Text>
       ),
       width: 100
@@ -399,11 +506,12 @@ const MigrateTask: React.FC = () => {
       title: (
         <span style={{ fontWeight: 600, color: '#1f2937' }}>剩余时间</span>
       ),
-      dataIndex: 'remainingTime',
       key: 'remainingTime',
-      render: (text: string) => (
+      render: (_: unknown, record: JobModelType) => (
         <Text style={{ color: '#ef4444', fontSize: '13px' }}>
-          {text || '0s'}
+          {record.rcloneData?.stats?.eta
+            ? record.rcloneData?.stats?.eta.toFixed(0) + 's'
+            : '-'}
         </Text>
       ),
       width: 100
@@ -411,20 +519,20 @@ const MigrateTask: React.FC = () => {
     {
       title: <span style={{ fontWeight: 600, color: '#1f2937' }}>操作</span>,
       key: 'action',
-      render: (_: unknown, record: TaskType) => (
+      render: (_: unknown, record: JobModelType) => (
         <Space size="small">
-          {record.status === 'migration' && (
+          {record.status === 'RUNNING' && (
             <Tooltip title="停止任务">
               <Button
                 type="text"
                 size="small"
                 icon={<PauseCircleOutlined />}
-                onClick={() => handlePause(record)}
+                onClick={() => handleStop(record)}
                 style={{ color: '#f59e0b' }}
               />
             </Tooltip>
           )}
-          {record.status === 'stopped' && (
+          {record.status === 'CANCELED' && (
             <>
               <Tooltip title="重新启动">
                 <Button
@@ -446,6 +554,17 @@ const MigrateTask: React.FC = () => {
               </Tooltip>
             </>
           )}
+          {record.status === 'COMPLETED' && (
+            <Tooltip title="重新启动">
+              <Button
+                type="text"
+                size="small"
+                icon={<PlayCircleOutlined />}
+                onClick={() => handleReStart(record)}
+                style={{ color: '#10b981' }}
+              />
+            </Tooltip>
+          )}
 
           <Tooltip title="删除任务">
             <Button
@@ -465,19 +584,17 @@ const MigrateTask: React.FC = () => {
 
   return (
     <>
-      <SearchForm openDrawer={handleCreate} />
-      <Table<TaskType>
+      <SearchForm
+        openDrawer={handleCreate}
+        sourceDevices={sourceDevices}
+        targetDevices={targetDevices}
+        onSearch={handleSearch}
+        onReset={handleReset}
+      />
+      <Table
         columns={tableColumns}
-        dataSource={dataSource}
+        dataSource={filteredDataSource}
         rowKey="key"
-        pagination={{
-          showSizeChanger: true,
-          showQuickJumper: true,
-          showTotal: (total, range) =>
-            `第 ${range[0]}-${range[1]} 条，共 ${total} 条记录`,
-          pageSizeOptions: ['10', '20', '50', '100'],
-          defaultPageSize: 10
-        }}
         scroll={{ x: 1200 }}
         style={{
           backgroundColor: '#ffffff'
@@ -490,6 +607,8 @@ const MigrateTask: React.FC = () => {
         closeDrawer={handleCloseDrawer}
         editingRecord={editingRecord}
         onSave={handleSave}
+        sourceDevices={sourceDevices}
+        targetDevices={targetDevices}
       />
 
       {/* 删除确认 Modal */}
