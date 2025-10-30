@@ -46,12 +46,12 @@ const SearchForm: React.FC<{
 
       <div className="flex">
         <Form.Item>
-          <Button color="purple" variant="outlined" onClick={handleSearch}>
+          <Button color="green" variant="outlined" onClick={handleSearch}>
             搜索
           </Button>
         </Form.Item>
         <Form.Item>
-          <Button color="green" variant="solid" onClick={handleReset}>
+          <Button color="red" variant="outlined" onClick={handleReset}>
             重置
           </Button>
         </Form.Item>

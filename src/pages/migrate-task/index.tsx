@@ -34,14 +34,13 @@ import {
 import type { JobModelType, JobParamsType } from '@/types/job';
 import type { RemoteResponseType } from '@/types/remote';
 
-const data: JobModelType[] = [];
-
 const MigrateTask: React.FC = () => {
   const [open, setOpen] = useState(false);
   const [editingRecord, setEditingRecord] = useState<JobModelType | null>(null);
-  const [dataSource, setDataSource] = useState<JobModelType[]>(data);
-  const [filteredDataSource, setFilteredDataSource] =
-    useState<JobModelType[]>(data);
+  const [persistantDataSource, setPersistantDataSource] = useState<
+    JobModelType[]
+  >([]);
+  const [dataSource, setDataSource] = useState<JobModelType[]>([]);
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
   const [deletingRecord, setDeletingRecord] = useState<JobModelType | null>(
     null
@@ -171,7 +170,7 @@ const MigrateTask: React.FC = () => {
           };
         });
         setDataSource(newRecords);
-        setFilteredDataSource(newRecords);
+        setPersistantDataSource(newRecords);
         dataSourceRef.current = newRecords;
       }
     } catch (error) {
@@ -184,23 +183,27 @@ const MigrateTask: React.FC = () => {
     const ws = new WebSocket('ws://localhost:3000');
     setWs(ws);
     ws.onmessage = (event) => {
-      const { jobId, data, finish } = JSON.parse(event.data);
-      if (finish) {
-        getJobs();
-        return;
+      const { jobId, data, status, type } = JSON.parse(event.data);
+      if (type && type === 'heartbeat') {
+        ws.send(
+          JSON.stringify({
+            type: 'heartbeat',
+            message: 'pong'
+          })
+        );
       }
       setDataSource((currentDataSource) => {
         const updated = currentDataSource.map((item) => {
           if (item.id === jobId) {
             return {
               ...item,
-              status: 'RUNNING',
+              status,
               rcloneData: data
             };
           }
           return item;
         });
-        setFilteredDataSource(updated);
+        // setFilteredDataSource(updated);
         return updated;
       });
     };
@@ -232,34 +235,35 @@ const MigrateTask: React.FC = () => {
   };
 
   // 搜索
-  const handleSearch = (values: {
+  const handleSearch = async (values: {
     name: string;
     sourceDeviceId: number;
     targetDeviceId: number;
   }) => {
     const { name, sourceDeviceId, targetDeviceId } = values;
-    const filtered = dataSource.filter((item) => {
+    const filtered = persistantDataSource.filter((item) => {
       const nameMatch =
         !name || item.name?.toLowerCase().includes(name.toLowerCase());
 
       // 根据设备名称匹配，因为JobModelType中没有source_remote_id字段
+      console.log(sourceDevices);
       const sourceMatch =
         !sourceDeviceId ||
         sourceDevices.find((device) => device.id === sourceDeviceId)?.name ===
-          item.source_remote;
+          item.source_remote.split(':')[0];
       const targetMatch =
         !targetDeviceId ||
         targetDevices.find((device) => device.id === targetDeviceId)?.name ===
-          item.target_remote;
+          item.target_remote.split(':')[0];
 
       return nameMatch && sourceMatch && targetMatch;
     });
-    setFilteredDataSource(filtered);
+    setDataSource(filtered);
   };
 
   // 重置
   const handleReset = () => {
-    setFilteredDataSource(dataSource);
+    getJobs();
   };
 
   useEffect(() => {
@@ -521,6 +525,17 @@ const MigrateTask: React.FC = () => {
       key: 'action',
       render: (_: unknown, record: JobModelType) => (
         <Space size="small">
+          {record.status === 'NEW' && (
+            <Tooltip title="编辑任务">
+              <Button
+                type="text"
+                size="small"
+                icon={<EditOutlined />}
+                onClick={() => handleEdit(record)}
+                style={{ color: '#3b82f6' }}
+              />
+            </Tooltip>
+          )}
           {record.status === 'RUNNING' && (
             <Tooltip title="停止任务">
               <Button
@@ -593,7 +608,7 @@ const MigrateTask: React.FC = () => {
       />
       <Table
         columns={tableColumns}
-        dataSource={filteredDataSource}
+        dataSource={dataSource}
         rowKey="key"
         scroll={{ x: 1200 }}
         style={{
