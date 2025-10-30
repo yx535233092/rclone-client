@@ -59,7 +59,7 @@ const TaskDrawer: React.FC<{
   return (
     <>
       <Drawer
-        title={editingRecord ? '编辑源设备' : '新建源设备'}
+        title={editingRecord ? '编辑目标设备' : '新建目标设备'}
         width={720}
         onClose={onClose}
         open={open}

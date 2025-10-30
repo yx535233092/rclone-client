@@ -180,7 +180,7 @@ const MigrateTask: React.FC = () => {
 
   // 创建ws连接
   const createWs = useCallback(() => {
-    const ws = new WebSocket('ws://localhost:3000');
+    const ws = new WebSocket(import.meta.env.VITE_WS_URL);
     setWs(ws);
     ws.onmessage = (event) => {
       const { jobId, data, status, type } = JSON.parse(event.data);
