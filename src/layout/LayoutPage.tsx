@@ -41,9 +41,13 @@ const LayoutPage: React.FC = () => {
   return (
     <Layout className="h-screen">
       <Sider breakpoint="lg" collapsedWidth="0">
-        <div className="w-full flex justify-center text-white py-8 text-sm">
-          RClone OSS 迁移工具
+        <div className="flex justify-center items-center px-4">
+          <img src="/images/h3c-logo.webp" alt="logo" className="w-[30px]" />
+          <div className="w-full flex justify-center text-white py-8 text-sm">
+            H3C MigrateX V0.1
+          </div>
         </div>
+
         <Menu
           theme="dark"
           mode="inline"
